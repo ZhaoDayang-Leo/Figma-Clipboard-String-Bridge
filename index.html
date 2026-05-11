@@ -174,29 +174,6 @@
       box-shadow: 4px 4px 0 var(--line);
     }
 
-    .dropzone {
-      margin-top: 16px;
-      min-height: 170px;
-      border: 3px dashed var(--line);
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.7);
-      padding: 18px;
-      outline: none;
-      transition: background 140ms ease, transform 140ms ease;
-    }
-
-    .dropzone:focus,
-    .dropzone.is-active {
-      background: #fff6cc;
-      transform: scale(1.01);
-    }
-
-    .dropzone strong {
-      display: block;
-      font-size: 20px;
-      margin-bottom: 8px;
-    }
-
     textarea,
     .preview {
       width: 100%;
@@ -305,7 +282,7 @@
         <h2>1. 从 Figma 提取</h2>
         <ol class="steps">
           <li>在 Figma 中选中图层并复制。</li>
-          <li>点击下面的“读取系统剪贴板”，或者直接在粘贴区按 <code>Ctrl/Cmd + V</code>。</li>
+          <li>点击下面的“读取系统剪贴板”，或者直接在当前网页按 <code>Ctrl/Cmd + V</code>。</li>
           <li>页面会显示 Figma 原始的 <code>text/html</code> 字符串，格式会更接近 clipboard-inspector。</li>
         </ol>
 
@@ -313,11 +290,6 @@
           <button id="readClipboardBtn" class="primary">读取系统剪贴板</button>
           <button id="copyEncodedBtn">复制字符串</button>
           <button id="clearCaptureBtn" class="secondary">清空</button>
-        </div>
-
-        <div id="pasteZone" class="dropzone" contenteditable="true" spellcheck="false">
-          <strong>把焦点放在这里后粘贴</strong>
-          支持直接粘贴。页面会捕获 Figma 的 <code>text/html</code> 内容并编码。
         </div>
 
         <h3>提取出的 HTML 字符串</h3>
@@ -331,15 +303,13 @@
       <article class="card">
         <h2>2. 还原回 Figma</h2>
         <ol class="steps">
-          <li>把上一步生成的 HTML 字符串粘贴到下面文本框。</li>
+          <li>左侧捕获后会自动把 HTML 字符串载入到下面文本框并完成解析。</li>
           <li>点击“复制为 Figma 内容”，或在文本框里按 <code>Ctrl/Cmd + C</code>。</li>
           <li>切回 Figma，直接粘贴。</li>
         </ol>
 
         <div class="actions">
-          <button id="decodeBtn" class="primary">解析字符串</button>
-          <button id="writeClipboardBtn">复制为 Figma 内容</button>
-          <button id="loadEncodedBtn" class="secondary">载入左侧字符串</button>
+          <button id="writeClipboardBtn" class="primary">复制为 Figma 内容</button>
         </div>
 
         <textarea id="encodedInput" placeholder="把字符串粘贴到这里"></textarea>
@@ -373,13 +343,10 @@
       readClipboardBtn: document.getElementById("readClipboardBtn"),
       copyEncodedBtn: document.getElementById("copyEncodedBtn"),
       clearCaptureBtn: document.getElementById("clearCaptureBtn"),
-      pasteZone: document.getElementById("pasteZone"),
       encodedOutput: document.getElementById("encodedOutput"),
       capturePreview: document.getElementById("capturePreview"),
       captureStatus: document.getElementById("captureStatus"),
-      decodeBtn: document.getElementById("decodeBtn"),
       writeClipboardBtn: document.getElementById("writeClipboardBtn"),
-      loadEncodedBtn: document.getElementById("loadEncodedBtn"),
       encodedInput: document.getElementById("encodedInput"),
       restorePreview: document.getElementById("restorePreview"),
       restoreStatus: document.getElementById("restoreStatus")
@@ -459,6 +426,7 @@
       const payload = buildPayloadFromStrings(strings);
       state.captured = payload;
       els.encodedOutput.value = payload.strings["text/html"];
+      els.encodedInput.value = payload.strings["text/html"];
       els.capturePreview.textContent = [
         "来源: " + sourceLabel,
         summarizeHtml(payload.strings["text/html"]),
@@ -471,6 +439,19 @@
         "已捕获 Figma HTML 原始字符串。这个结果会更接近 clipboard-inspector 展示的 text/html。",
         "good"
       );
+
+      try {
+        decodeFromInput();
+        setStatus(
+          els.restoreStatus,
+          "已自动载入并解析左侧提取结果，现在可以直接复制为 Figma 内容。",
+          "good"
+        );
+      } catch (error) {
+        state.decoded = null;
+        els.restorePreview.textContent = "自动解析失败。";
+        setStatus(els.restoreStatus, error.message, "bad");
+      }
     }
 
     function payloadFromRawHtml(html, plainText) {
@@ -593,21 +574,6 @@
       setStatus(els.captureStatus, "已清空当前捕获结果。", "");
     });
 
-    els.loadEncodedBtn.addEventListener("click", () => {
-      els.encodedInput.value = els.encodedOutput.value;
-      setStatus(els.restoreStatus, "已把左侧字符串载入右侧，点击“解析字符串”即可。", "");
-    });
-
-    els.decodeBtn.addEventListener("click", () => {
-      try {
-        decodeFromInput();
-      } catch (error) {
-        state.decoded = null;
-        els.restorePreview.textContent = "解析失败。";
-        setStatus(els.restoreStatus, error.message, "bad");
-      }
-    });
-
     els.writeClipboardBtn.addEventListener("click", async () => {
       try {
         const payload = state.decoded || decodeFromInput();
@@ -632,7 +598,7 @@
       }
     });
 
-    els.pasteZone.addEventListener("paste", (event) => {
+    document.addEventListener("paste", (event) => {
       event.preventDefault();
       try {
         const strings = {
@@ -643,20 +609,6 @@
       } catch (error) {
         setStatus(els.captureStatus, error.message, "bad");
       }
-    });
-
-    ["dragenter", "dragover"].forEach((eventName) => {
-      els.pasteZone.addEventListener(eventName, (event) => {
-        event.preventDefault();
-        els.pasteZone.classList.add("is-active");
-      });
-    });
-
-    ["dragleave", "drop"].forEach((eventName) => {
-      els.pasteZone.addEventListener(eventName, (event) => {
-        event.preventDefault();
-        els.pasteZone.classList.remove("is-active");
-      });
     });
 
     installCopyAsFigmaBehavior(els.encodedInput);
