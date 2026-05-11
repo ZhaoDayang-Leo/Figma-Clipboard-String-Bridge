@@ -4,4 +4,5 @@ A lightweight HTML tool for extracting Figma clipboard `text/html`, turning it i
 
 ## Live use
 
-Open `index.html` in a browser, or publish this repository with GitHub Pages.
+[Open `index.html` in a browser, or publish this repository with GitHub Pages.
+](https://zhaodayang-leo.github.io/Figma-Clipboard-String-Bridge/)
